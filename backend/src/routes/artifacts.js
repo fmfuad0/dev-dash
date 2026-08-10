@@ -16,22 +16,14 @@ router.use(requireAuth);
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 const CreateArtifactSchema = z.object({
   workspaceId: z.string().regex(/^[a-f\d]{24}$/i),
-  kind: z.enum([
-    'snippet',
-    'markdown',
-    'canvas',
-    'credential',
-    'remoteConnection',
-    'terminalEvent',
-    'image',
-    'remoteFile',
-    'astIndex',
-  ]),
+
   title: z.string().min(1).max(240).trim(),
   tags: z.array(z.string().max(50)).max(20).default([]),
   contentText: z.string().max(2_000_000).optional(), // 2MB max
   contentEnvelope: z.unknown().optional(),
   language: z.string().max(50).optional(),
+  category: z.string().max(100).optional(),
+  fileType: z.string().max(100).optional(),
   visibility: z.enum(['private', 'workspace', 'team']).default('private'),
   isPinned: z.boolean().default(false),
   // Discriminator-specific fields passed through
@@ -52,6 +44,8 @@ const UpdateArtifactSchema = z.object({
   contentText: z.string().max(2_000_000).optional(),
   contentEnvelope: z.unknown().optional(),
   language: z.string().max(50).optional(),
+  category: z.string().max(100).optional(),
+  fileType: z.string().max(100).optional(),
   visibility: z.enum(['private', 'workspace', 'team']).optional(),
   isPinned: z.boolean().optional(),
   changeNote: z.string().max(500).optional(),
@@ -59,9 +53,11 @@ const UpdateArtifactSchema = z.object({
 
 const ListArtifactsQuerySchema = paginationSchema.extend({
   workspaceId: z.string().regex(/^[a-f\d]{24}$/i).optional(),
-  kind: z.string().optional(),
+
   tags: z.string().optional(), // comma-separated
   language: z.string().optional(),
+  category: z.string().optional(),
+  fileType: z.string().optional(),
   pinned: z.coerce.boolean().optional(),
   q: z.string().max(200).optional(),
 });
@@ -82,7 +78,7 @@ function hashContent(text) {
 // ─── List Artifacts ───────────────────────────────────────────────────────────
 router.get('/', validateQuery(ListArtifactsQuerySchema), async (req, res, next) => {
   try {
-    const { page, limit, workspaceId, kind, tags, language, pinned, q } = req.query;
+    const { page, limit, workspaceId, tags, language, pinned, q } = req.query;
     const skip = (page - 1) * limit;
 
     const filter = {
@@ -91,8 +87,10 @@ router.get('/', validateQuery(ListArtifactsQuerySchema), async (req, res, next) 
     };
 
     if (workspaceId) filter.workspaceId = workspaceId;
-    if (kind) filter.kind = kind;
+
     if (language) filter.language = language;
+    if (req.query.category) filter.category = req.query.category;
+    if (req.query.fileType) filter.fileType = req.query.fileType;
     if (pinned !== undefined) filter.isPinned = pinned;
     if (tags) {
       const tagArr = tags.split(',').map((t) => t.trim()).filter(Boolean);
@@ -101,12 +99,22 @@ router.get('/', validateQuery(ListArtifactsQuerySchema), async (req, res, next) 
 
     // Text search
     if (q) {
-      filter.$text = { $search: q };
+      const escapedQ = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const fuzzyRegex = new RegExp(escapedQ.split(/\s+/).join('.*?'), 'i');
+      filter.$or = [
+        { title: { $regex: fuzzyRegex } },
+        { tags: { $regex: fuzzyRegex } },
+        { category: { $regex: fuzzyRegex } },
+        { language: { $regex: fuzzyRegex } },
+        { fileType: { $regex: fuzzyRegex } }
+      ];
     }
+
+    const sort = { updatedAt: -1 };
 
     const [artifacts, total] = await Promise.all([
       Artifact.find(filter)
-        .sort(q ? { score: { $meta: 'textScore' }, updatedAt: -1 } : { updatedAt: -1 })
+        .sort(sort)
         .skip(skip)
         .limit(limit)
         .select('-contentText -contentEnvelope') // omit heavy fields in list
@@ -126,13 +134,13 @@ router.get('/', validateQuery(ListArtifactsQuerySchema), async (req, res, next) 
 // ─── Create Artifact ──────────────────────────────────────────────────────────
 router.post('/', validate(CreateArtifactSchema), async (req, res, next) => {
   try {
-    const { workspaceId, kind, contentText, changeNote, ...rest } = req.body;
+    const { workspaceId, contentText, changeNote, category, ...rest } = req.body;
 
     // Validate workspace access
     await assertWorkspaceAccess(req.user._id, workspaceId);
 
     // Credential artifacts MUST use encrypted envelopes
-    if (kind === 'credential' && !rest.secretEnvelope) {
+    if (category === 'Vault' && !rest.secretEnvelope) {
       return res.status(400).json({
         error: 'Credential artifacts must use encrypted envelopes (secretEnvelope)',
       });
@@ -141,7 +149,7 @@ router.post('/', validate(CreateArtifactSchema), async (req, res, next) => {
     const artifact = await Artifact.create({
       ownerId: req.user._id,
       workspaceId,
-      kind,
+      category,
       contentText,
       contentHash: hashContent(contentText),
       ...rest,
@@ -164,7 +172,7 @@ router.post('/', validate(CreateArtifactSchema), async (req, res, next) => {
     if (queues?.artifactIndex) {
       await queues.artifactIndex.add('artifact.index', {
         artifactId: artifact._id.toString(),
-        kind,
+        category,
         workspaceId,
       });
     }
@@ -173,11 +181,31 @@ router.post('/', validate(CreateArtifactSchema), async (req, res, next) => {
     req.app.get('io')?.to(`user:${req.user._id}`).emit('server:artifact.created', {
       artifactId: artifact._id,
       workspaceId,
-      kind,
+      category,
     });
 
-    logger.info({ artifactId: artifact._id, kind }, 'Artifact created');
+    logger.info({ artifactId: artifact._id, category }, 'Artifact created');
     res.status(201).json({ artifact });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── Get Stats ────────────────────────────────────────────────────────────────
+router.get('/stats', async (req, res, next) => {
+  try {
+    const { workspaceId } = req.query;
+    const filter = {
+      ownerId: req.user._id,
+      deletedAt: null,
+    };
+    if (workspaceId) filter.workspaceId = workspaceId;
+
+    const artifacts = await Artifact.find(filter)
+      .select('tags category fileType updatedAt')
+      .lean();
+
+    res.json({ artifacts });
   } catch (err) {
     next(err);
   }

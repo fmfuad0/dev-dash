@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, FolderKanban, Code2, Search, Lock,
   Terminal, Cpu, Settings, LogOut, Zap, Github,
-  ChevronLeft, ChevronRight, TerminalSquare, Bell,
+  ChevronLeft, ChevronRight, TerminalSquare, Bell, Workflow, HardDrive
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore.js';
 import { useUIStore } from '../../store/uiStore.js';
@@ -13,15 +13,15 @@ import WorkspaceSwitcher from '../Workspace/WorkspaceSwitcher.jsx';
 
 const NAV_ITEMS = [
   { to: '/',           label: 'Dashboard',         icon: LayoutDashboard, end: true },
+  { to: '/explorer',   label: 'Storages',          icon: HardDrive },
   { to: '/artifacts',  label: 'Artifacts',          icon: Code2 },
-  { to: '/editor',     label: '</Editor>',          icon: Code2 },
-  { to: '/terminal',   label: 'Terminal',           icon: TerminalSquare },
+  { to: '/editor',     label: 'Editor',             icon: Code2 },
   { to: '/terminal-history', label: 'Term History', icon: Terminal },
   { to: '/git',        label: 'Git',                icon: Github },
-  { to: '/search',     label: 'Search',             icon: Search },
   { to: '/notifications', label: 'Notifications',   icon: Bell },
   { to: '/vault',      label: 'Vault',              icon: Lock },
   { to: '/devices',    label: 'Devices',            icon: Cpu },
+  { to: '/canvas',     label: 'Canvas',             icon: Workflow },
 ];
 
 export default function Sidebar() {
@@ -31,6 +31,18 @@ export default function Sidebar() {
   const logout = useAuthStore((s) => s.logout);
   const user = useAuthStore((s) => s.user);
   const daemonOnline = useSocketStore((s) => s.daemonOnline);
+  
+  const theme = useUIStore((s) => s.theme);
+  const setTheme = useUIStore((s) => s.setTheme);
+
+  const THEMES = [
+    { value: 'theme-matte', label: 'Matte Dark' },
+    { value: 'theme-crimson-flare', label: 'Crimson Flare' },
+    { value: 'theme-midnight-indigo', label: 'Midnight Indigo' },
+    { value: 'theme-forest-onyx', label: 'Forest Onyx' },
+    { value: 'theme-warm-stone', label: 'Warm Stone' },
+    { value: 'theme-mist-sage', label: 'Mist Sage' }
+  ];
 
   async function handleLogout() {
     try { await authApi.logout(); } catch {}
@@ -52,6 +64,7 @@ export default function Sidebar() {
         transition: 'width 0.2s ease',
         overflow: 'hidden',
         position: 'relative',
+        borderRadius: 'var(--radius-xl)',
       }}
     >
       {/* ── Logo ── */}
@@ -139,6 +152,48 @@ export default function Sidebar() {
           style={{ marginBottom: 12, justifyContent: collapsed ? 'center' : undefined }}>
           <div className="daemon-dot" />
           {!collapsed && (daemonOnline ? 'Daemon Online' : 'Daemon Offline')}
+        </div>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+          {!collapsed && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Theme</span>}
+          {collapsed ? (
+             <div 
+               style={{ width: 24, height: 24, borderRadius: 'var(--radius-full)', background: 'var(--accent-primary)', margin: '0 auto', cursor: 'pointer' }}
+               title={THEMES.find(t => t.value === theme)?.label || 'Theme'}
+               onClick={() => {
+                 const idx = THEMES.findIndex(t => t.value === theme);
+                 setTheme(THEMES[(idx + 1) % THEMES.length].value);
+               }}
+             />
+          ) : (
+            <div style={{ position: 'relative' }}>
+              <select
+                value={theme}
+                onChange={(e) => setTheme(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '4px 8px',
+                  fontSize: '0.75rem',
+                  border: '1px solid var(--accent-primary)',
+                  backgroundColor: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)',
+                  borderRadius: 'var(--radius-sm)',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  appearance: 'none',
+                }}
+              >
+                {THEMES.map(t => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+              <div style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </div>
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 10 }}>

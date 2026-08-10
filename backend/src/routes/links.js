@@ -36,10 +36,10 @@ router.get('/:id/links', async (req, res, next) => {
 
     const [outgoing, incoming] = await Promise.all([
       ArtifactLink.find({ fromArtifactId: req.params.id, ownerId: req.user._id })
-        .populate('toArtifactId', 'title kind tags')
+        .populate('toArtifactId', 'title category fileType tags')
         .lean(),
       ArtifactLink.find({ toArtifactId: req.params.id, ownerId: req.user._id })
-        .populate('fromArtifactId', 'title kind tags')
+        .populate('fromArtifactId', 'title category fileType tags')
         .lean(),
     ]);
 

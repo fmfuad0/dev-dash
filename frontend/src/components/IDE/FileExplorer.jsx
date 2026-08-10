@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { ChevronRight, ChevronDown, FolderOpen, Folder, File, RefreshCw, Plus, FilePlus, FolderPlus, Trash2, Edit2 } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { ChevronRight, ChevronDown, FolderOpen, Folder, File, RefreshCw, Plus, FilePlus, FolderPlus, Trash2, Edit2, HardDrive } from 'lucide-react';
 import { useIdeStore, detectLanguage } from '../../store/ideStore.js';
 import api from '../../api/client.js';
 import { toast, useUIStore } from '../../store/uiStore.js';
@@ -134,6 +134,25 @@ export default function VSExplorer({ rootItems, rootPath, onRefresh }) {
   const lastOpenedPath = useUIStore((s) => s.lastOpenedPath);
   const setLastOpenedPath = useUIStore((s) => s.setLastOpenedPath);
 
+  // ── Drives state ──────────────────────────────────────────────────────────
+  const [drives, setDrives]           = useState([]);
+  const [drivesOpen, setDrivesOpen]   = useState(true);
+  const [drivesLoading, setDrivesLoading] = useState(false);
+
+  useEffect(() => {
+    setDrivesLoading(true);
+    api.get('/fs/drives')
+      .then((r) => setDrives(r.data.drives || []))
+      .catch(() => {})
+      .finally(() => setDrivesLoading(false));
+  }, []);
+
+  const handleDriveClick = (drive) => {
+    setLastOpenedPath(drive.path);
+    setRootPath(drive.path);
+    onRefresh(drive.path);
+  };
+
   const handleContextMenu = (e, item) => {
     setContextMenu({ x: e.clientX, y: e.clientY, item });
   };
@@ -216,6 +235,68 @@ export default function VSExplorer({ rootItems, rootPath, onRefresh }) {
             <RefreshCw size={13} />
           </button>
         </div>
+      </div>
+
+      {/* ── Drives Panel ── */}
+      <div style={{ borderBottom: '1px solid #1e1e1e', flexShrink: 0 }}>
+        {/* Drives header */}
+        <div
+          style={{
+            padding: '5px 8px', fontSize: '11px', fontWeight: 700,
+            textTransform: 'uppercase', letterSpacing: '0.06em',
+            color: '#9e9e9e', display: 'flex', alignItems: 'center',
+            gap: 4, cursor: 'pointer', userSelect: 'none',
+          }}
+          onClick={() => setDrivesOpen((o) => !o)}
+        >
+          {drivesOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          <HardDrive size={12} style={{ marginRight: 2 }} />
+          Drives
+        </div>
+
+        {/* Drive list */}
+        {drivesOpen && (
+          <div style={{ paddingBottom: 4 }}>
+            {drivesLoading && (
+              <div style={{ padding: '4px 24px', fontSize: '11px', color: '#555' }}>Loading…</div>
+            )}
+            {!drivesLoading && drives.length === 0 && (
+              <div style={{ padding: '4px 24px', fontSize: '11px', color: '#555' }}>No drives found</div>
+            )}
+            {drives.map((drive) => (
+              <div
+                key={drive.path}
+                onClick={() => handleDriveClick(drive)}
+                title={`Open ${drive.path}`}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '3px 24px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  color: rootPath === drive.path || rootPath?.startsWith(drive.path)
+                    ? '#4fc3f7'
+                    : '#cccccc',
+                  background: rootPath === drive.path || rootPath?.startsWith(drive.path)
+                    ? 'rgba(79,195,247,0.08)'
+                    : 'transparent',
+                  transition: 'background 0.1s',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background =
+                    rootPath === drive.path || rootPath?.startsWith(drive.path)
+                      ? 'rgba(79,195,247,0.08)' : 'transparent';
+                }}
+              >
+                <HardDrive size={12} style={{ flexShrink: 0, color: '#ffb74d' }} />
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {drive.name}
+                </span>
+                <span style={{ fontSize: '10px', color: '#555', flexShrink: 0 }}>{drive.type}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Open Folder */}

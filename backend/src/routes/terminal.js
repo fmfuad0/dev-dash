@@ -2,7 +2,7 @@
 
 const { Router } = require('express');
 const { z } = require('zod');
-const { TerminalEventArtifact } = require('../models/artifact');
+const { Artifact } = require('../models/artifact');
 const { requireAuth } = require('../middleware/auth');
 const { validate, validateQuery, paginationSchema } = require('../middleware/validate');
 
@@ -51,12 +51,12 @@ router.get('/events', validateQuery(paginationSchema.extend({
     if (since) filter.capturedAt = { $gte: new Date(since) };
 
     const [events, total] = await Promise.all([
-      TerminalEventArtifact.find(filter)
+      Artifact.find({ ...filter, category: 'Terminal Event' })
         .sort({ capturedAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
-      TerminalEventArtifact.countDocuments(filter),
+      Artifact.countDocuments({ ...filter, category: 'Terminal Event' }),
     ]);
 
     res.json({
@@ -71,9 +71,9 @@ router.get('/events', validateQuery(paginationSchema.extend({
 // POST /api/terminal/events — capture terminal event
 router.post('/events', validate(CaptureSchema), async (req, res, next) => {
   try {
-    const event = await TerminalEventArtifact.create({
+    const event = await Artifact.create({
       ownerId: req.user._id,
-      kind: 'terminalEvent',
+      category: 'Terminal Event',
       title: req.body.commandPreview?.slice(0, 100) || 'Terminal event',
       ...req.body,
       source: { type: 'terminal' },

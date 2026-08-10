@@ -66,7 +66,7 @@ export default function SearchPage() {
           <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
             <Filter size={12} /> Filter:
           </span>
-          {['snippet', 'markdown', 'canvas', 'terminalEvent'].map((k) => (
+          {['snippet', 'markdown', 'excalidraw', 'terminalEvent'].map((k) => (
             <button
               key={k}
               onClick={() => setKinds((v) => v === k ? '' : k)}

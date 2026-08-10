@@ -16,6 +16,7 @@ function initSocketGateway(httpServer) {
       credentials: true,
     },
     transports: ['websocket', 'polling'],
+    destroyUpgrade: false, // CRITICAL: Prevent Socket.io from killing VS Code WebSockets!
   });
 
   // ─── Auth Middleware ────────────────────────────────────────────────────────
@@ -31,6 +32,10 @@ function initSocketGateway(httpServer) {
       next(new Error('Invalid auth token'));
     }
   });
+
+  // ─── Active Terminals ───────────────────────────────────────────────────────
+  // Store terminals globally per user so they persist across socket disconnects
+  const activeTerminals = {}; // userId -> { termId: { process, buffer, metadata, ... } }
 
   // ─── Connection Handler ─────────────────────────────────────────────────────
   io.on('connection', (socket) => {
@@ -76,65 +81,88 @@ function initSocketGateway(httpServer) {
     });
 
     // ── Integrated Terminal ───────────────────────────────────────────────────
-    const terminals = {};
+    if (!activeTerminals[userId]) activeTerminals[userId] = {};
+    const terminals = activeTerminals[userId];
+
+    socket.on('client:terminal.list', (payload, callback) => {
+      const list = Object.keys(terminals).map(id => ({
+        id,
+        metadata: terminals[id].metadata
+      }));
+      if (typeof callback === 'function') callback(list);
+    });
+
+    socket.on('client:terminal.attach', (payload, callback) => {
+      const term = terminals[payload.id];
+      if (term) {
+        logger.info({ id: payload.id, bufferLength: term.buffer.length }, 'Attaching to terminal');
+        if (typeof callback === 'function') callback({ history: term.buffer });
+      } else {
+        logger.warn({ id: payload.id }, 'Attach failed: Terminal not found');
+        if (typeof callback === 'function') callback({ error: 'Terminal not found' });
+      }
+    });
 
     socket.on('client:terminal.spawn', (data, callback) => {
       try {
-        // Use shell requested by client, fall back to platform default
-        const defaultShell = os.platform() === 'win32' ? 'powershell.exe' : (process.env.SHELL || 'bash');
-        let shell = data.shell || defaultShell;
-        const cwd = data.cwd || process.env.HOME || process.cwd();
-        
-        let args = data.args || [];
-        if (shell === 'cmd.exe' || shell === 'cmd') {
-          shell = 'cmd.exe';
-          // Ensure we don't run AutoRun scripts that might launch PowerShell
-          if (!args.includes('/d')) args.unshift('/d');
+        const platform = os.platform();
+        const defaultShell = platform === 'win32' ? 'powershell.exe' : (process.env.SHELL || '/bin/bash');
+        const shell = data.shell || defaultShell;
+        const cwd = data.cwd || os.homedir();
+        const cols = data.cols || 120;
+        const rows = data.rows || 30;
+
+        logger.info({ shell, cwd, cols, rows }, 'Spawning terminal');
+
+        const ptyArgs = [];
+        if (shell === 'docker') {
+          // If the user requests the Docker terminal, exec into the vscode engine container
+          ptyArgs.push('exec', '-it', 'vscode-engine', '/bin/bash');
+        } else if (platform === 'win32') {
+          if (shell.toLowerCase().includes('powershell')) ptyArgs.push('-NoLogo');
+        } else {
+          if (shell.includes('bash') || shell.includes('zsh')) ptyArgs.push('-i', '-l');
         }
 
-        if (os.platform() === 'win32' && shell === 'bash.exe') {
-          const fs = require('fs');
-          const gitBashPath = 'C:\\Program Files\\Git\\bin\\bash.exe';
-          if (fs.existsSync(gitBashPath)) {
-            shell = gitBashPath;
-          }
-        }
-
-        require('fs').appendFileSync('C:/Users/Tamimur Rahaman/Desktop/WORKSPACE-FUAD/DEV-DASH/backend/terminal_debug.log', `[SPAWN] data.shell: ${data.shell}, final shell: ${shell}, args: ${args.join(' ')}\n`);
-
-        logger.info({ shell, args, cwd }, 'Spawning terminal');
-
-        const ptyProcess = pty.spawn(shell, args, {
+        const proc = pty.spawn(shell, ptyArgs, {
           name: 'xterm-256color',
-          cols: data.cols || 120,
-          rows: data.rows || 30,
-          cwd,
-          env: {
-            ...process.env,
-            TERM: 'xterm-256color',
-            COLORTERM: 'truecolor',
-            TERM_PROGRAM: 'DEV_DASH_IDE',
-          },
+          cols,
+          rows,
+          cwd: shell === 'docker' ? undefined : cwd,
+          env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
+          useConpty: true,
         });
 
-        const termId = ptyProcess.pid.toString();
-        terminals[termId] = ptyProcess;
+        const termId = String(proc.pid);
+        logger.info({ termId, shell, userId }, 'Spawned new terminal');
 
-        ptyProcess.onData((output) => {
-          socket.emit('server:terminal.data', { id: termId, data: output });
+        terminals[termId] = {
+          process: proc,
+          buffer: '',
+          metadata: data, // Keep metadata so frontend can restore it
+          write:  (d)    => { try { proc.write(d); } catch {} },
+          resize: (c, r) => { try { proc.resize(c, r); } catch {} },
+          kill:   ()     => { try { proc.kill(); } catch {} },
+        };
+
+        proc.onData((output) => {
+          const term = terminals[termId];
+          if (term) {
+            term.buffer += output;
+            // Cap history to ~100kb to prevent memory leak
+            if (term.buffer.length > 100000) term.buffer = term.buffer.slice(-100000);
+          }
+          io.to(`user:${userId}`).emit('server:terminal.data', { id: termId, data: output });
         });
 
-        ptyProcess.onExit(({ exitCode }) => {
-          socket.emit('server:terminal.exit', { id: termId, exitCode });
+        proc.onExit(({ exitCode }) => {
+          io.to(`user:${userId}`).emit('server:terminal.exit', { id: termId, exitCode });
           delete terminals[termId];
         });
 
-        if (typeof callback === 'function') {
-          callback({ id: termId });
-        } else {
-          // Also emit as event in case ACK not supported by client version
-          socket.emit('server:terminal.spawned', { id: termId, requestId: data.requestId });
-        }
+        if (typeof callback === 'function') callback({ id: termId });
+        socket.emit('server:terminal.spawned', { id: termId, requestId: data.requestId });
+
       } catch (err) {
         logger.error({ err }, 'Failed to spawn terminal');
         if (typeof callback === 'function') callback({ error: err.message });
@@ -162,15 +190,15 @@ function initSocketGateway(httpServer) {
       }
     });
 
+    socket.on('client:terminal.check', (payload, callback) => {
+      const isAlive = !!terminals[payload.id];
+      if (typeof callback === 'function') callback({ alive: isAlive });
+    });
+
     // ── Disconnect ────────────────────────────────────────────────────────────
     socket.on('disconnect', (reason) => {
       logger.info({ userId, socketId: socket.id, reason }, 'Socket disconnected');
-      // Cleanup terminals
-      Object.keys(terminals).forEach((termId) => {
-        try {
-          terminals[termId].kill();
-        } catch (e) {}
-      });
+      // Intentionally NOT killing terminals here so they persist for the user.
     });
 
     socket.on('error', (err) => {

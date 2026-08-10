@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 const { EncryptedEnvelopeSchema } = require('./encryptedEnvelope');
 
-// ─── Base Artifact Schema ─────────────────────────────────────────────────────
+// ─── Unified Artifact Schema ─────────────────────────────────────────────────────
 const ArtifactBaseSchema = new Schema(
   {
     ownerId: {
@@ -17,23 +17,6 @@ const ArtifactBaseSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: 'Workspace',
       required: true,
-      index: true,
-    },
-
-    kind: {
-      type: String,
-      required: true,
-      enum: [
-        'snippet',
-        'markdown',
-        'canvas',
-        'credential',
-        'remoteConnection',
-        'terminalEvent',
-        'image',
-        'remoteFile',
-        'astIndex',
-      ],
       index: true,
     },
 
@@ -53,6 +36,8 @@ const ArtifactBaseSchema = new Schema(
 
     contentHash: { type: String, index: true },
     language: { type: String, index: true },
+    category: { type: String, index: true },
+    fileType: { type: String, index: true },
 
     source: {
       type: {
@@ -113,31 +98,10 @@ const ArtifactBaseSchema = new Schema(
 
     isPinned: { type: Boolean, default: false },
     deletedAt: { type: Date },
-  },
-  {
-    timestamps: true,
-    discriminatorKey: 'kind',
-    minimize: false,
-  }
-);
 
-// Compound indexes for efficient queries
-ArtifactBaseSchema.index({ ownerId: 1, workspaceId: 1, kind: 1, updatedAt: -1 });
-ArtifactBaseSchema.index({ ownerId: 1, tags: 1 });
-ArtifactBaseSchema.index({ workspaceId: 1, isPinned: 1, updatedAt: -1 });
-ArtifactBaseSchema.index({ title: 'text', contentText: 'text', tags: 'text' });
-// Partial index for soft-delete pattern
-ArtifactBaseSchema.index(
-  { ownerId: 1, workspaceId: 1, deletedAt: 1 },
-  { partialFilterExpression: { deletedAt: null } }
-);
+    // --- Flattened fields from legacy discriminators ---
 
-const Artifact = mongoose.model('Artifact', ArtifactBaseSchema);
-
-// ─── Snippet Discriminator ────────────────────────────────────────────────────
-const SnippetArtifact = Artifact.discriminator(
-  'snippet',
-  new Schema({
+    // From Snippet
     snippetType: {
       type: String,
       enum: ['function', 'component', 'config', 'command', 'error', 'note'],
@@ -157,27 +121,16 @@ const SnippetArtifact = Artifact.discriminator(
       envKeys: [String],
       requiresConfirmation: { type: Boolean, default: true },
     },
-  })
-);
 
-// ─── Markdown Discriminator ───────────────────────────────────────────────────
-const MarkdownArtifact = Artifact.discriminator(
-  'markdown',
-  new Schema({
+    // From Markdown
     toc: [{ level: Number, text: String, slug: String }],
     wordCount: { type: Number, default: 0 },
     readTimeMinutes: { type: Number, default: 0 },
-  })
-);
 
-// ─── Canvas Discriminator ─────────────────────────────────────────────────────
-const CanvasArtifact = Artifact.discriminator(
-  'canvas',
-  new Schema({
+    // From Canvas
     engine: {
       type: String,
       enum: ['excalidraw', 'react-flow', 'hybrid'],
-      required: true,
     },
     canvasJson: { type: Schema.Types.Mixed },
     crdt: {
@@ -191,17 +144,11 @@ const CanvasArtifact = Artifact.discriminator(
       viewport: { x: Number, y: Number, zoom: Number },
       bounds: { width: Number, height: Number },
     },
-  })
-);
 
-// ─── Credential Discriminator ─────────────────────────────────────────────────
-const CredentialArtifact = Artifact.discriminator(
-  'credential',
-  new Schema({
+    // From Credential
     vaultType: {
       type: String,
       enum: ['env', 'ssh-key', 'ftp-password', 'api-token', 'generic'],
-      required: true,
       index: true,
     },
     publicMeta: {
@@ -216,32 +163,25 @@ const CredentialArtifact = Artifact.discriminator(
       envNameHash: String,
       fingerprint: String,
     },
-    secretEnvelope: { type: require('./encryptedEnvelope').EncryptedEnvelopeSchema, required: true },
+    secretEnvelope: { type: EncryptedEnvelopeSchema },
     rotation: {
       keyVersion: { type: Number, default: 1 },
       lastRotatedAt: Date,
       expiresAt: Date,
     },
-  })
-);
 
-// ─── Remote Connection Discriminator ─────────────────────────────────────────
-const RemoteConnectionArtifact = Artifact.discriminator(
-  'remoteConnection',
-  new Schema({
+    // From RemoteConnection
     protocol: {
       type: String,
       enum: ['ssh', 'sftp', 'ftp', 'ftps'],
-      required: true,
       index: true,
     },
-    host: { type: String, required: true },
-    port: { type: Number, required: true },
+    host: { type: String },
+    port: { type: Number },
     usernameHint: { type: String },
     credentialArtifactId: {
       type: Schema.Types.ObjectId,
       ref: 'Artifact',
-      required: true,
       index: true,
     },
     security: {
@@ -257,13 +197,8 @@ const RemoteConnectionArtifact = Artifact.discriminator(
         default: 'edit-with-snapshot',
       },
     },
-  })
-);
 
-// ─── Terminal Event Discriminator ─────────────────────────────────────────────
-const TerminalEventArtifact = Artifact.discriminator(
-  'terminalEvent',
-  new Schema({
+    // From TerminalEvent
     shell: {
       type: String,
       enum: ['bash', 'zsh', 'fish', 'powershell', 'unknown'],
@@ -271,8 +206,8 @@ const TerminalEventArtifact = Artifact.discriminator(
       index: true,
     },
     commandPreview: { type: String },
-    commandEnvelope: require('./encryptedEnvelope').EncryptedEnvelopeSchema,
-    commandHash: { type: String, required: true, index: true },
+    commandEnvelope: EncryptedEnvelopeSchema,
+    commandHash: { type: String, index: true },
     cwdHash: { type: String, index: true },
     git: {
       repoHash: String,
@@ -282,22 +217,33 @@ const TerminalEventArtifact = Artifact.discriminator(
     },
     exitCode: Number,
     durationMs: Number,
-    capturedAt: { type: Date, required: true, index: true },
+    capturedAt: { type: Date, index: true },
     classification: {
       type: String,
       enum: ['normal', 'error', 'install', 'git', 'deploy', 'test', 'secret-risk'],
       default: 'normal',
       index: true,
     },
-  })
+  },
+  {
+    timestamps: true,
+    minimize: false,
+  }
 );
+
+// Compound indexes for efficient queries
+ArtifactBaseSchema.index({ ownerId: 1, workspaceId: 1, updatedAt: -1 });
+ArtifactBaseSchema.index({ ownerId: 1, tags: 1 });
+ArtifactBaseSchema.index({ workspaceId: 1, isPinned: 1, updatedAt: -1 });
+ArtifactBaseSchema.index({ title: 'text', contentText: 'text', tags: 'text' });
+// Partial index for soft-delete pattern
+ArtifactBaseSchema.index(
+  { ownerId: 1, workspaceId: 1, deletedAt: 1 },
+  { partialFilterExpression: { deletedAt: null } }
+);
+
+const Artifact = mongoose.model('Artifact', ArtifactBaseSchema);
 
 module.exports = {
   Artifact,
-  SnippetArtifact,
-  MarkdownArtifact,
-  CanvasArtifact,
-  CredentialArtifact,
-  RemoteConnectionArtifact,
-  TerminalEventArtifact,
 };

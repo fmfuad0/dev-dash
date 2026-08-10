@@ -4,6 +4,10 @@ import { persist } from 'zustand/middleware';
 export const useUIStore = create(
   persist(
     (set, get) => ({
+      // Theme
+      theme: 'theme-matte',
+      setTheme: (theme) => set({ theme }),
+
       // Active workspace
       activeWorkspaceId: null,
       setActiveWorkspace: (id) => set({ activeWorkspaceId: id }),
@@ -63,6 +67,7 @@ export const useUIStore = create(
         sidebarCollapsed: s.sidebarCollapsed,
         viewMode: s.viewMode,
         notificationHistory: s.notificationHistory,
+        theme: s.theme,
       }),
     }
   )

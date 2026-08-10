@@ -157,7 +157,7 @@ async function applyMutation(userId, mutation) {
       await Artifact.create({
         ownerId: userId,
         workspaceId,
-        kind: 'terminalEvent',
+        category: 'Terminal Event',
         title: payload.commandPreview?.slice(0, 100) || 'Terminal event',
         ...payload,
         source: { ...payload.source, type: 'terminal' },

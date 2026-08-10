@@ -1,10 +1,10 @@
 'use strict';
 
 const mongoose = require('mongoose');
-const logger = require('../utils/logger');
+const logger = require('../utils/logger'); 
 
 let isConnected = false; 
-
+ 
 async function connectDB() {
   if (isConnected) return;
 
@@ -42,3 +42,4 @@ async function disconnectDB() {
 }
 
 module.exports = { connectDB, disconnectDB };
+ 

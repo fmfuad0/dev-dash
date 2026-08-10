@@ -4,16 +4,7 @@ import Modal from '../UI/Modal.jsx';
 import { useCreateArtifact } from '../../hooks/useArtifacts.js';
 import { useUIStore } from '../../store/uiStore.js';
 
-const KINDS = [
-  { value: 'snippet',  label: 'Code Snippet' },
-  { value: 'markdown', label: 'Markdown Note' },
-  { value: 'canvas',   label: 'Canvas' },
-];
-
-const LANGUAGES = [
-  'javascript', 'typescript', 'python', 'bash', 'sql',
-  'json', 'yaml', 'html', 'css', 'go', 'rust', 'java', 'php', 'ruby', 'other',
-];
+import { CATEGORY_GROUPS, CATEGORIES, FILE_TYPE_GROUPS, FILE_TYPES } from '../../utils/artifactResources.js';
 
 export default function CreateArtifactModal({ onClose, onCreated }) {
   const workspaceId = useUIStore((s) => s.activeWorkspaceId);
@@ -23,10 +14,15 @@ export default function CreateArtifactModal({ onClose, onCreated }) {
     kind: 'snippet',
     title: '',
     contentText: '',
-    language: 'javascript',
+    categoryGroup: '',
+    category: '',
+    fileTypeGroup: '',
+    fileType: '',
     tags: [],
     tagInput: '',
   });
+  const [fileTypeSearch, setFileTypeSearch] = useState('');
+  const [showFileSearchResults, setShowFileSearchResults] = useState(false);
   const [errors, setErrors] = useState({});
 
   function set(key, val) { setForm((f) => ({ ...f, [key]: val })); }
@@ -48,6 +44,8 @@ export default function CreateArtifactModal({ onClose, onCreated }) {
     const errs = {};
     if (!form.title.trim()) errs.title = 'Title is required';
     if (!workspaceId) errs.workspace = 'Please select a workspace first';
+    if (!form.category) errs.category = 'Category is required';
+    if (!form.fileType) errs.fileType = 'File type is required';
     return errs;
   }
 
@@ -56,9 +54,8 @@ export default function CreateArtifactModal({ onClose, onCreated }) {
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
 
-    const { tagInput, ...rest } = form;
+    const { tagInput, categoryGroup, fileTypeGroup, ...rest } = form;
     const payload = { ...rest, workspaceId };
-    if (form.kind !== 'snippet') delete payload.language;
 
     const data = await mutateAsync(payload);
     onCreated?.(data.artifact);
@@ -68,23 +65,6 @@ export default function CreateArtifactModal({ onClose, onCreated }) {
   return (
     <Modal title="New Artifact" onClose={onClose} size="lg">
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-
-        {/* Kind selector */}
-        <div className="input-group">
-          <label className="input-label">Type</label>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {KINDS.map((k) => (
-              <button
-                key={k.value}
-                type="button"
-                onClick={() => set('kind', k.value)}
-                className={`btn ${form.kind === k.value ? 'btn-primary' : 'btn-secondary'} btn-sm`}
-              >
-                {k.label}
-              </button>
-            ))}
-          </div>
-        </div>
 
         {/* Title */}
         <div className="input-group">
@@ -99,46 +79,132 @@ export default function CreateArtifactModal({ onClose, onCreated }) {
           {errors.title && <span className="input-error">{errors.title}</span>}
         </div>
 
-        {/* Language (snippets only) */}
-        {form.kind === 'snippet' && (
-          <div className="input-group">
-            <label className="input-label">Language</label>
+        {/* Category */}
+        <div className="input-group">
+          <label className="input-label">Categorize Your Artifact</label>
+          <div style={{ display: 'flex', gap: 10 }}>
             <select
               className="select"
-              value={form.language}
-              onChange={(e) => set('language', e.target.value)}
+              style={{ flex: 1 }}
+              value={form.categoryGroup}
+              onChange={(e) => {
+                set('categoryGroup', e.target.value);
+                set('category', '');
+              }}
+            >  
+              <option value="" disabled>SELECT CATEGORY GROUP</option>
+              {CATEGORY_GROUPS.map((g) => (
+                <option key={g} value={g}>{g}</option>
+              ))}
+            </select>
+            <select
+              className="select"
+              style={{ flex: 1 }}
+              value={form.category}
+              onChange={(e) => set('category', e.target.value)}
+              disabled={!form.categoryGroup}
             >
-              {LANGUAGES.map((l) => (
-                <option key={l} value={l}>{l}</option>
+              <option value="" disabled>SELECT CATEGORY NAME</option>
+              {form.categoryGroup && CATEGORIES.filter(c => c.group === form.categoryGroup).map((c) => (
+                <option key={c.id} value={c.name}>{c.name}</option>
               ))}
             </select>
           </div>
-        )}
+          {errors.category && <span className="input-error">{errors.category}</span>}
+        </div>
+
+        {/* File Type */}
+        <div className="input-group">
+          <label className="input-label">Assign Language or File Type</label>
+          
+          <div style={{ position: 'relative', marginBottom: 10 }}>
+            <input 
+              type="text" 
+              className="input" 
+              placeholder="Search for a language or file type..."
+              value={fileTypeSearch}
+              onChange={(e) => {
+                setFileTypeSearch(e.target.value);
+                setShowFileSearchResults(true);
+              }}
+              onFocus={() => setShowFileSearchResults(true)}
+              onBlur={() => setTimeout(() => setShowFileSearchResults(false), 200)}
+            />
+            {showFileSearchResults && fileTypeSearch.trim() !== '' && (
+              <div style={{
+                position: 'absolute', top: '100%', left: 0, right: 0, 
+                background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', 
+                maxHeight: 200, overflowY: 'auto', zIndex: 10, borderRadius: 'var(--radius-md)',
+                boxShadow: 'var(--shadow-md)', marginTop: 4
+              }}>
+                {FILE_TYPES.filter(f => 
+                  f.label.toLowerCase().includes(fileTypeSearch.toLowerCase()) || 
+                  f.ext.toLowerCase().includes(fileTypeSearch.toLowerCase())
+                ).map(f => (
+                  <div 
+                    key={f.ext}
+                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '0.85rem' }}
+                    onMouseEnter={(e) => e.target.style.background = 'var(--bg-overlay)'}
+                    onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                    onClick={() => {
+                      set('fileTypeGroup', f.group);
+                      set('fileType', f.ext);
+                      setFileTypeSearch('');
+                      setShowFileSearchResults(false);
+                    }}
+                  >
+                    {f.label} <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>({f.group})</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            <select
+              className="select"
+              style={{ flex: 1 }}
+              value={form.fileTypeGroup}
+              onChange={(e) => {
+                set('fileTypeGroup', e.target.value);
+                set('fileType', '');
+              }}
+            >
+              <option value="" disabled>SELECT FILE GROUP</option>
+              {FILE_TYPE_GROUPS.map((g) => (
+                <option key={g} value={g}>{g}</option>
+              ))}
+            </select>
+            <select
+              className="select"
+              style={{ flex: 1 }}
+              value={form.fileType}
+              onChange={(e) => set('fileType', e.target.value)}
+              disabled={!form.fileTypeGroup}
+            >
+              <option value="" disabled>SELECT FILE TYPE</option>
+              {form.fileTypeGroup && FILE_TYPES.filter(f => f.group === form.fileTypeGroup).map((f) => (
+                <option key={f.ext} value={f.ext}>{f.label}</option>
+              ))}
+            </select>
+          </div>
+          {errors.fileType && <span className="input-error">{errors.fileType}</span>}
+        </div>
 
         {/* Content */}
         <div className="input-group">
           <label className="input-label">Content</label>
-          {form.kind === 'snippet' ? (
-            <textarea
-              className="editor-textarea"
-              style={{
-                border: '1px solid var(--border-default)',
-                borderRadius: 'var(--radius-md)',
-                minHeight: 220,
-              }}
-              placeholder={`// Paste your code here…`}
-              value={form.contentText}
-              onChange={(e) => set('contentText', e.target.value)}
-            />
-          ) : (
-            <textarea
-              className="textarea"
-              placeholder="Write your notes in Markdown…"
-              value={form.contentText}
-              onChange={(e) => set('contentText', e.target.value)}
-              style={{ minHeight: 180 }}
-            />
-          )}
+          <textarea
+            className="editor-textarea"
+            style={{
+              border: '1px solid var(--border-default)',
+              borderRadius: 'var(--radius-md)',
+              minHeight: 220,
+            }}
+            placeholder={`// Paste your code here…`}
+            value={form.contentText}
+            onChange={(e) => set('contentText', e.target.value)}
+          />
         </div>
 
         {/* Tags */}

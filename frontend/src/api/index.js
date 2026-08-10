@@ -1,8 +1,9 @@
 import api from './client.js';
 
 export const searchApi = {
-  search: (params) => api.get('/search', { params }).then((r) => r.data),
-  tags:   (params) => api.get('/search/tags', { params }).then((r) => r.data),
+  search:      (params) => api.get('/search', { params }).then((r) => r.data),
+  tags:        (params) => api.get('/search/tags', { params }).then((r) => r.data),
+  suggestions: ()       => api.get('/search/suggestions').then((r) => r.data),
 };
 
 export const vaultApi = {

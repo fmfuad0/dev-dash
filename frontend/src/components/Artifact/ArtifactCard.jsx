@@ -1,33 +1,62 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { Pin, Tag, Clock } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
+import { Pin, Tag, Clock, Code2, PenTool, ExternalLink, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { useDeleteArtifact } from '../../hooks/useArtifacts.js';
+import { useUIStore } from '../../store/uiStore.js';
 
-const KIND_LABELS = {
-  snippet:         { label: 'Snippet',    cls: 'kind-snippet' },
-  markdown:        { label: 'Markdown',   cls: 'kind-markdown' },
-  canvas:          { label: 'Canvas',     cls: 'kind-canvas' },
-  credential:      { label: 'Vault',      cls: 'kind-credential' },
-  remoteConnection:{ label: 'Remote',     cls: 'kind-remote' },
-  terminalEvent:   { label: 'Terminal',   cls: 'kind-terminal' },
-  image:           { label: 'Image',      cls: 'kind-markdown' },
-  remoteFile:      { label: 'File',       cls: 'kind-remote' },
-  astIndex:        { label: 'AST',        cls: 'kind-snippet' },
-};
+import { getFileColor, getCategoryColor } from '../../utils/artifactResources.js';
+
+
 
 export default function ArtifactCard({ artifact }) {
-  const { _id, title, kind, tags = [], contentText, language, isPinned, updatedAt } = artifact;
-  const kindMeta = KIND_LABELS[kind] || { label: kind, cls: 'badge-default' };
+  const { _id, title, tags = [], contentText, language, category, fileType, isPinned, updatedAt } = artifact;
   const preview  = contentText?.slice(0, 200);
   const ago      = updatedAt ? formatDistanceToNow(new Date(updatedAt), { addSuffix: true }) : '';
 
+  const navigate = useNavigate();
+  const deleteMutation = useDeleteArtifact();
+  const openArtifact = useUIStore((s) => s.openArtifact);
+
+  const [contextMenu, setContextMenu] = useState(null);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setContextMenu(null);
+      }
+    };
+    if (contextMenu) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [contextMenu]);
+
   return (
-    <Link to={`/artifacts/${_id}`} className="artifact-card" id={`artifact-${_id}`}>
+    <div 
+      onClick={() => navigate(`/artifacts/${_id}`)} 
+      className="artifact-card" 
+      id={`artifact-${_id}`}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setContextMenu({ x: e.clientX, y: e.clientY });
+      }}
+    >
       <div className="artifact-card-header">
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <span className={`badge badge-default ${kindMeta.cls}`}>{kindMeta.label}</span>
-            {language && (
+
+            {category && (
+              <span className="badge" style={{ backgroundColor: getCategoryColor(category), color: '#fff', fontSize: '0.68rem', borderColor: 'transparent' }}>
+                {category}
+              </span>
+            )}
+            {fileType && (
+              <span className="badge" style={{ backgroundColor: getFileColor(fileType), color: '#fff', fontFamily: 'var(--font-mono)', fontSize: '0.68rem', borderColor: 'transparent' }}>
+                {fileType}
+              </span>
+            )}
+            {!category && !fileType && language && (
               <span className="badge badge-default" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem' }}>
                 {language}
               </span>
@@ -62,6 +91,70 @@ export default function ArtifactCard({ artifact }) {
           {ago}
         </div>
       </div>
-    </Link>
+
+      {contextMenu && createPortal(
+        <div 
+          ref={menuRef}
+          style={{
+            position: 'fixed',
+            top: contextMenu.y,
+            left: contextMenu.x,
+            zIndex: 99999,
+            background: 'var(--bg-panel)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-md)',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.3)',
+            padding: '4px',
+            minWidth: '220px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '2px'
+          }}
+        >
+          {(fileType !== 'canvas' && fileType !== 'excalidraw') && (
+            <button 
+              className="btn btn-ghost btn-sm"
+              style={{ justifyContent: 'flex-start', color: 'var(--text-primary)' }}
+              onClick={(e) => { e.stopPropagation(); openArtifact(_id); navigate('/editor'); setContextMenu(null); }}
+            >
+              <Code2 size={14} /> Open with EDITOR
+            </button>
+          )}
+          {(fileType === 'canvas' || fileType === 'excalidraw') && (
+            <button 
+              className="btn btn-ghost btn-sm"
+              style={{ justifyContent: 'flex-start', color: 'var(--text-primary)' }}
+              onClick={(e) => { e.stopPropagation(); navigate('/canvas', { state: { artifactId: _id } }); setContextMenu(null); }}
+            >
+              <PenTool size={14} /> Open with CANVAS
+            </button>
+          )}
+          <button 
+            className="btn btn-ghost btn-sm"
+            style={{ justifyContent: 'flex-start', color: 'var(--text-primary)' }}
+            onClick={(e) => { e.stopPropagation(); navigate(`/artifacts/${_id}`); setContextMenu(null); }}
+          >
+            <ExternalLink size={14} /> View details
+          </button>
+          
+          <div style={{ height: '1px', background: 'var(--border-subtle)', margin: '4px 0' }} />
+          
+          <button 
+            className="btn btn-ghost btn-sm"
+            style={{ justifyContent: 'flex-start', color: 'var(--accent-danger)' }}
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              if (window.confirm('Delete permanently? This action cannot be undone.')) {
+                deleteMutation.mutateAsync(_id);
+              }
+              setContextMenu(null); 
+            }}
+          >
+            <Trash2 size={14} /> Delete permanently
+          </button>
+        </div>,
+        document.body
+      )}
+    </div>
   );
 }

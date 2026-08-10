@@ -3,7 +3,7 @@
 // Vault routes — serves encrypted envelopes only; never decrypts on server side
 const { Router } = require('express');
 const { z } = require('zod');
-const { CredentialArtifact } = require('../models/artifact');
+const { Artifact } = require('../models/artifact');
 const { requireAuth } = require('../middleware/auth');
 const { validate, validateQuery, paginationSchema } = require('../middleware/validate');
 
@@ -22,6 +22,7 @@ const VaultItemSchema = z.object({
     keyName: z.string().optional(),
     envNameHash: z.string().optional(),
     fingerprint: z.string().optional(),
+    format: z.enum(['single', 'file']).optional(),
   }).optional(),
   // Always required — MongoDB only ever sees the envelope, never plaintext
   secretEnvelope: z.object({
@@ -49,13 +50,13 @@ router.get('/items', validateQuery(paginationSchema.extend({
     if (vaultType) filter.vaultType = vaultType;
 
     const [items, total] = await Promise.all([
-      CredentialArtifact.find(filter)
+      Artifact.find({ ...filter, category: 'Vault' })
         .sort({ updatedAt: -1 })
         .skip(skip)
         .limit(limit)
         .select('-secretEnvelope') // envelope only returned on explicit fetch
         .lean(),
-      CredentialArtifact.countDocuments(filter),
+      Artifact.countDocuments({ ...filter, category: 'Vault' }),
     ]);
 
     res.json({
@@ -70,9 +71,9 @@ router.get('/items', validateQuery(paginationSchema.extend({
 // POST /api/vault/items — store encrypted vault item
 router.post('/items', validate(VaultItemSchema), async (req, res, next) => {
   try {
-    const item = await CredentialArtifact.create({
+    const item = await Artifact.create({
       ownerId: req.user._id,
-      kind: 'credential',
+      category: 'Vault',
       ...req.body,
       'search.privacyClass': 'e2e',
     });
@@ -86,7 +87,7 @@ router.post('/items', validate(VaultItemSchema), async (req, res, next) => {
 // GET /api/vault/items/:id — get encrypted envelope (not decrypted)
 router.get('/items/:id', async (req, res, next) => {
   try {
-    const item = await CredentialArtifact.findOne({
+    const item = await Artifact.findOne({
       _id: req.params.id,
       ownerId: req.user._id,
     });

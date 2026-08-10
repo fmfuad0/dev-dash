@@ -44,9 +44,17 @@ const VSCodeEditor = React.memo(function VSCodeEditor({
     modelRef.current = model;
 
     // Create the editor instance
+    // Map ideStore theme values → Monaco built-in theme names
+    const resolveTheme = (t) => {
+      if (t === 'vs-dark') return 'Default Dark Modern';
+      if (t === 'vs-light') return 'Default Light Modern';
+      if (t === 'hc-black') return 'hc-black';
+      return 'Default Dark Modern';
+    };
+
     const editor = monaco.editor.create(containerRef.current, {
       model,
-      theme: theme === 'vs-dark' ? 'Default Dark Modern' : theme === 'light' ? 'Default Light Modern' : theme,
+      theme: resolveTheme(theme),
       fontSize: fontSize ?? 14,
       fontFamily: '"Cascadia Code", "JetBrains Mono", "Consolas", monospace',
       fontLigatures: true,
@@ -144,13 +152,15 @@ const VSCodeEditor = React.memo(function VSCodeEditor({
     monaco.editor.setModelLanguage(modelRef.current, language);
   }, [language]);
 
-  // Sync theme changes
+  // Sync theme changes — monaco is a static import (never falsy), safe to call directly
   useEffect(() => {
-    if (!monaco) return;
-    const t = theme === 'vs-dark' ? 'Default Dark Modern'
-            : theme === 'light' ? 'Default Light Modern' 
-            : (theme ?? 'Default Dark Modern');
-    monaco.editor.setTheme(t);
+    const resolveTheme = (t) => {
+      if (t === 'vs-dark')  return 'Default Dark Modern';
+      if (t === 'vs-light') return 'Default Light Modern';
+      if (t === 'hc-black') return 'hc-black';
+      return 'Default Dark Modern';
+    };
+    monaco.editor.setTheme(resolveTheme(theme));
   }, [theme]);
 
   // Sync fontSize

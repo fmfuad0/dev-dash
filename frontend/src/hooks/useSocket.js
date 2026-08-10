@@ -28,9 +28,10 @@ export function useSocket() {
       return;
     }
 
-    const s = io('/', {
+    const backendUrl = import.meta.env.DEV ? 'http://localhost:5000' : '/';
+    const s = io(backendUrl, {
       auth: { token: accessToken },
-      transports: ['websocket', 'polling'],
+      transports: ['websocket'],
       reconnectionAttempts: 5,
       reconnectionDelay: 2000,
     });
@@ -45,14 +46,17 @@ export function useSocket() {
     s.on('server:artifact.created', ({ workspaceId }) => {
       queryClient.invalidateQueries({ queryKey: ['artifacts', workspaceId] });
       queryClient.invalidateQueries({ queryKey: ['artifacts'] });
+      queryClient.invalidateQueries({ queryKey: ['artifact-stats'] });
     });
     s.on('server:artifact.updated', ({ artifactId, workspaceId }) => {
       queryClient.invalidateQueries({ queryKey: ['artifact', artifactId] });
       queryClient.invalidateQueries({ queryKey: ['artifacts', workspaceId] });
+      queryClient.invalidateQueries({ queryKey: ['artifact-stats'] });
     });
     s.on('server:artifact.deleted', ({ artifactId, workspaceId }) => {
       queryClient.invalidateQueries({ queryKey: ['artifact', artifactId] });
       queryClient.invalidateQueries({ queryKey: ['artifacts', workspaceId] });
+      queryClient.invalidateQueries({ queryKey: ['artifact-stats'] });
     });
 
     // ── Daemon heartbeat ack ───────────────────────────────────────────────────

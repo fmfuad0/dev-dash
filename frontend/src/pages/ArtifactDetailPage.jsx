@@ -8,11 +8,60 @@ import {
 import { formatDistanceToNow, format } from 'date-fns';
 import { useArtifact, useUpdateArtifact, useDeleteArtifact, useArtifactVersions } from '../hooks/useArtifacts.js';
 import { toast } from '../store/uiStore.js';
+import { getFileColor, getCategoryColor } from '../utils/artifactResources.js';
+import CanvasEditor from '../components/Canvas/CanvasEditor.jsx';
 
-const KIND_LABEL = {
-  snippet: 'Snippet', markdown: 'Note', canvas: 'Canvas',
-  credential: 'Vault', remoteConnection: 'Remote', terminalEvent: 'Terminal',
-};
+function getMonacoLanguage(fileType, language) {
+  const map = {
+    'js': 'javascript',
+    'jsx': 'javascript',
+    'ts': 'typescript',
+    'tsx': 'typescript',
+    'py': 'python',
+    'rb': 'ruby',
+    'cs': 'csharp',
+    'cpp': 'cpp',
+    'c': 'c',
+    'h': 'c',
+    'hpp': 'cpp',
+    'md': 'markdown',
+    'json': 'json',
+    'html': 'html',
+    'css': 'css',
+    'scss': 'scss',
+    'less': 'less',
+    'xml': 'xml',
+    'yaml': 'yaml',
+    'yml': 'yaml',
+    'sh': 'shell',
+    'bash': 'shell',
+    'sql': 'sql',
+    'java': 'java',
+    'go': 'go',
+    'rs': 'rust',
+    'php': 'php',
+    'swift': 'swift',
+    'kt': 'kotlin',
+    'txt': 'plaintext',
+  };
+
+  if (fileType) {
+    const ext = fileType.replace('.', '').toLowerCase();
+    if (map[ext]) return map[ext];
+  }
+
+  if (language) {
+    const lang = language.toLowerCase();
+    if (map[lang]) return map[lang];
+    return lang;
+  }
+
+  if (fileType) {
+    return fileType.replace('.', '').toLowerCase();
+  }
+
+  return 'plaintext';
+}
 
 export default function ArtifactDetailPage() {
   const { id }     = useParams();
@@ -98,7 +147,7 @@ export default function ArtifactDetailPage() {
     );
   }
 
-  const isCode = artifact.kind === 'snippet' || artifact.kind === 'terminalEvent';
+  const isCode = artifact.fileType ? true : false;
 
   return (
     <div className="page-content">
@@ -133,6 +182,16 @@ export default function ArtifactDetailPage() {
           {artifact.isPinned ? <PinOff size={14} /> : <Pin size={14} />}
         </button>
 
+        {(artifact.fileType === 'excalidraw' || artifact.fileType === 'canvas') && (
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => navigate('/canvas', { state: { artifactId: artifact._id } })}
+            title="Open in Canvas Editor"
+          >
+            <ExternalLink size={13} style={{ marginRight: 6 }} /> Open with Canvas
+          </button>
+        )}
+
         {editing ? (
           <>
             <button className="btn btn-ghost btn-sm" onClick={() => { setEditing(false); setContent(artifact.contentText || ''); setTitle(artifact.title); }}>
@@ -164,10 +223,18 @@ export default function ArtifactDetailPage() {
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <span className={`badge badge-default kind-${artifact.kind}`}>
-                  {KIND_LABEL[artifact.kind] || artifact.kind}
-                </span>
-                {artifact.language && (
+
+                {artifact.category && (
+                  <span className="badge" style={{ backgroundColor: getCategoryColor(artifact.category), color: '#fff', fontSize: '0.7rem', borderColor: 'transparent' }}>
+                    {artifact.category}
+                  </span>
+                )}
+                {artifact.fileType && (
+                  <span className="badge" style={{ backgroundColor: getFileColor(artifact.fileType), color: '#fff', fontFamily: 'var(--font-mono)', fontSize: '0.7rem', borderColor: 'transparent' }}>
+                    {artifact.fileType}
+                  </span>
+                )}
+                {!artifact.category && !artifact.fileType && artifact.language && (
                   <span className="badge badge-default" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>
                     {artifact.language}
                   </span>
@@ -234,29 +301,40 @@ export default function ArtifactDetailPage() {
               <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', flex: 1, paddingLeft: 8 }}>
                 {artifact.title}
               </span>
-              {artifact.language && (
+              {artifact.fileType && (
+                <span className="editor-lang-badge" style={{ backgroundColor: getFileColor(artifact.fileType), color: '#fff' }}>{artifact.fileType}</span>
+              )}
+              {!artifact.fileType && artifact.language && (
                 <span className="editor-lang-badge">{artifact.language}</span>
               )}
             </div>
 
             <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
-              <Editor
-                height="100%"
-                language={artifact.language || (isCode ? 'javascript' : 'markdown')}
-                theme="vs-dark"
-                value={editing ? content : (artifact.contentText || '')}
-                onChange={(value) => setContent(value || '')}
-                options={{
-                  readOnly: !editing,
-                  minimap: { enabled: false },
-                  fontSize: 13,
-                  fontFamily: 'var(--font-mono), monospace',
-                  wordWrap: 'on',
-                  automaticLayout: true,
-                  scrollBeyondLastLine: false,
-                  padding: { top: 16, bottom: 16 },
-                }}
-              />
+              {(artifact.fileType === 'canvas' || artifact.fileType === 'excalidraw') ? (
+                <CanvasEditor 
+                  content={editing ? content : (artifact.contentText || '')} 
+                  onChange={(value) => setContent(value || '')} 
+                  isReadOnly={!editing} 
+                />
+              ) : (
+                <Editor
+                  height="100%"
+                  language={getMonacoLanguage(artifact.fileType, artifact.language)}
+                  theme="vs-dark"
+                  value={editing ? content : (artifact.contentText || '')}
+                  onChange={(value) => setContent(value || '')}
+                  options={{
+                    readOnly: !editing,
+                    minimap: { enabled: false },
+                    fontSize: 13,
+                    fontFamily: 'var(--font-mono), monospace',
+                    wordWrap: 'on',
+                    automaticLayout: true,
+                    scrollBeyondLastLine: false,
+                    padding: { top: 16, bottom: 16 },
+                  }}
+                />
+              )}
             </div>
           </div>
 

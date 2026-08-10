@@ -3,3 +3,12 @@ node_modules
 package-lock.json
 .env
 .env.*
+backend/terminal_debug.log
+Implementation plan.md
+CATEGORY AND FILE TYPE RESOURCE
+npx-cache
+tunnel.log
+tunnel.err
+test_api.js
+oldEditorPage.jsx
+editorlog.txt

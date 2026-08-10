@@ -32,11 +32,11 @@ function initQueues() {
   const artifactIndexWorker = new Worker(
     QUEUE_NAMES.ARTIFACT_INDEX,
     async (job) => {
-      const { artifactId, kind, workspaceId } = job.data;
-      logger.info({ artifactId, kind }, 'Indexing artifact');
+      const { artifactId, category, workspaceId } = job.data;
+      logger.info({ artifactId, category }, 'Indexing artifact');
 
       // Queue AST parsing for code artifacts
-      if (['snippet', 'markdown', 'remoteFile'].includes(kind)) {
+      if (['Code snippet', 'Script', 'Function', 'Markdown', 'File'].includes(category)) {
         await queues.ast.add('ast.parse', { artifactId }, {
           attempts: 3,
           backoff: { type: 'exponential', delay: 2000 },

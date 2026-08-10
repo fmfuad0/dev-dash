@@ -8,11 +8,26 @@
   height: 100%;
   width: 100%;
   overflow: hidden;
-  background: #1e1e1e;
+  background: transparent;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 13px;
-  color: #cccccc;
+  color: var(--text-primary, #cccccc);
   user-select: none;
+}
+
+/* ── Xterm scrollbar styling ── */
+.vsc-root .xterm-viewport::-webkit-scrollbar {
+  width: 8px;
+}
+.vsc-root .xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+.vsc-root .xterm-viewport::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+.vsc-root .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 
 /* ── Title Bar ── */
@@ -453,7 +468,7 @@
 .vsc-statusbar {
   height: 22px;
   min-height: 22px;
-  background: #007acc;
+  background: var(--accent-primary, #007acc);
   display: flex;
   align-items: center;
   font-size: 12px;

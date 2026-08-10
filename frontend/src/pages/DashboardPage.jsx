@@ -1,19 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Code2, FileText, Layout, Lock, Terminal, TrendingUp, Plus, ArrowRight, Clock, Zap } from 'lucide-react';
-import { useArtifacts } from '../hooks/useArtifacts.js';
+import { 
+  Code2, FileText, Layout, Lock, Terminal, TrendingUp, 
+  Plus, ArrowRight, Clock, Zap, Hash, Activity, 
+  Layers, Database, Settings, BookOpen, Server, FileCode, Shield, Folder
+} from 'lucide-react';
+import { useArtifacts, useArtifactStats } from '../hooks/useArtifacts.js';
 import { useWorkspaces } from '../hooks/useWorkspaces.js';
 import { useAuthStore } from '../store/authStore.js';
 import { useUIStore } from '../store/uiStore.js';
 import ArtifactCard from '../components/Artifact/ArtifactCard.jsx';
 import CreateArtifactModal from '../components/Artifact/CreateArtifactModal.jsx';
 
-const KIND_STATS = [
-  { key: 'snippet',    label: 'Snippets',   icon: Code2,    cls: 'stat-snippets' },
-  { key: 'markdown',   label: 'Notes',      icon: FileText, cls: 'stat-markdown' },
-  { key: 'credential', label: 'Vault Items',icon: Lock,     cls: 'stat-vault' },
-  { key: 'terminalEvent',label:'Commands',  icon: Terminal, cls: 'stat-terminal' },
-];
+import { CATEGORIES } from '../utils/artifactResources.js';
 
 export default function DashboardPage() {
   const navigate     = useNavigate();
@@ -21,7 +20,7 @@ export default function DashboardPage() {
   const workspaceId  = useUIStore((s) => s.activeWorkspaceId);
   const [showCreate, setShowCreate] = useState(false);
 
-  const { data: allData }      = useArtifacts({ workspaceId, limit: 100 });
+  const { data: allData }      = useArtifactStats({ workspaceId });
   const { data: recentData }   = useArtifacts({ workspaceId, limit: 6, sort: 'updatedAt', order: 'desc' });
   const { data: pinnedData }   = useArtifacts({ workspaceId, pinned: true, limit: 4 });
   const { data: wsData }       = useWorkspaces();
@@ -35,6 +34,72 @@ export default function DashboardPage() {
   const greeting = greetingHour < 12 ? 'Good morning' : greetingHour < 18 ? 'Good afternoon' : 'Good evening';
   const firstName = user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || 'Developer';
 
+  // Compute Stats dynamically
+  const stats = useMemo(() => {
+    const uniqueTags = new Set();
+    let updatedTodayCount = 0;
+    
+    const categoryToGroup = Object.fromEntries(CATEGORIES.map(c => [c.name, c.group]));
+    const domainCounts = {};
+    const fileTypeCounts = {};
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    all.forEach(a => {
+      // Tags
+      if (a.tags && Array.isArray(a.tags)) {
+        a.tags.forEach(t => uniqueTags.add(t));
+      }
+      
+      // Updated Today
+      if (new Date(a.updatedAt) >= today) {
+        updatedTodayCount++;
+      }
+      
+      // Domain counts
+      if (a.category) {
+        const group = categoryToGroup[a.category] || 'Other';
+        domainCounts[group] = (domainCounts[group] || 0) + 1;
+      }
+      
+      // File Type counts
+      if (a.fileType) {
+        fileTypeCounts[a.fileType] = (fileTypeCounts[a.fileType] || 0) + 1;
+      }
+    });
+
+    const sortedDomains = Object.entries(domainCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6);
+
+    const sortedFileTypes = Object.entries(fileTypeCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4);
+      
+    return {
+      totalArtifacts: all.length,
+      uniqueTags: uniqueTags.size,
+      updatedToday: updatedTodayCount,
+      sortedDomains,
+      sortedFileTypes
+    };
+  }, [all]);
+
+  const getDomainIcon = (group) => {
+    switch (group) {
+      case 'Frontend/UI': return <Layout size={20} />;
+      case 'Backend/API': return <Server size={20} />;
+      case 'Core source code': return <FileCode size={20} />;
+      case 'Database/data layer': return <Database size={20} />;
+      case 'Development environment/tooling': return <Settings size={20} />;
+      case 'Deployment/infrastructure/operations': return <Activity size={20} />;
+      case 'Testing/security/quality': return <Shield size={20} />;
+      case 'Data science/docs/examples': return <BookOpen size={20} />;
+      default: return <Layers size={20} />;
+    }
+  };
+
   return (
     <div className="page-content">
       {/* ── Hero greeting ──────────────────────────────────────────────────── */}
@@ -44,12 +109,13 @@ export default function DashboardPage() {
         borderRadius: 'var(--radius-xl)',
         padding: '28px 32px',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'space-between',
         gap: 24,
         flexWrap: 'wrap',
         position: 'relative',
         overflow: 'hidden',
+        flexShrink: 0,
       }}>
         <div style={{
           position: 'absolute', top: -40, right: -40,
@@ -81,20 +147,77 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      {/* ── Stats grid ─────────────────────────────────────────────────────── */}
-      <div className="stats-grid">
-        {KIND_STATS.map(({ key, label, icon: Icon, cls }) => {
-          const count = all.filter((a) => a.kind === key).length;
-          return (
-            <div key={key} className={`stat-card ${cls}`} style={{ cursor: 'pointer' }}
-              onClick={() => navigate(`/artifacts?kind=${key}`)}>
-              <div className="stat-card-icon"><Icon size={36} /></div>
-              <div className="stat-card-value">{count}</div>
-              <div className="stat-card-label">{label}</div>
-            </div>
-          );
-        })}
+      {/* ── System Overview ─────────────────────────────────────────────────────── */}
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+        <div className="stat-card" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', boxShadow: 'var(--shadow-sm)' }}>
+          <div className="stat-card-icon" style={{ color: 'var(--accent-primary)', background: 'var(--bg-highlight)' }}><FileText size={24} /></div>
+          <div className="stat-card-value">{stats.totalArtifacts}</div>
+          <div className="stat-card-label">Total Artifacts</div>
+        </div>
+        <div className="stat-card" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', boxShadow: 'var(--shadow-sm)' }}>
+          <div className="stat-card-icon" style={{ color: 'var(--accent-secondary)', background: 'var(--bg-highlight)' }}><Folder size={24} /></div>
+          <div className="stat-card-value">{wsCount}</div>
+          <div className="stat-card-label">Total Workspaces</div>
+        </div>
+        <div className="stat-card" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', boxShadow: 'var(--shadow-sm)' }}>
+          <div className="stat-card-icon" style={{ color: 'var(--success)', background: 'var(--bg-highlight)' }}><Hash size={24} /></div>
+          <div className="stat-card-value">{stats.uniqueTags}</div>
+          <div className="stat-card-label">Unique Tags</div>
+        </div>
+        <div className="stat-card" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', boxShadow: 'var(--shadow-sm)' }}>
+          <div className="stat-card-icon" style={{ color: 'var(--warning)', background: 'var(--bg-highlight)' }}><Activity size={24} /></div>
+          <div className="stat-card-value">{stats.updatedToday}</div>
+          <div className="stat-card-label">Active Today</div>
+        </div>
       </div>
+
+      {/* ── Detailed Breakdowns ────────────────────────────────────────────────── */}
+      {(stats.sortedDomains.length > 0 || stats.sortedFileTypes.length > 0) && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24, marginTop: 24, marginBottom: 32 }}>
+          {/* Domains */}
+          {stats.sortedDomains.length > 0 && (
+            <div style={{ background: 'var(--bg-panel)', padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--glass-border)' }}>
+              <h3 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-secondary)' }}>
+                <Layers size={16} /> Artifacts by Domain
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {stats.sortedDomains.map(([group, count]) => (
+                  <div key={group} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ color: 'var(--text-muted)' }}>{getDomainIcon(group)}</div>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>{group}</span>
+                    </div>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-highlight)', padding: '4px 10px', borderRadius: '12px' }}>
+                      {count}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {/* File Types */}
+          {stats.sortedFileTypes.length > 0 && (
+            <div style={{ background: 'var(--bg-panel)', padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--glass-border)' }}>
+              <h3 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-secondary)' }}>
+                <Code2 size={16} /> Top File Types
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {stats.sortedFileTypes.map(([ext, count]) => (
+                  <div key={ext} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--accent-primary)', width: 44, textAlign: 'center' }}>{ext}</span>
+                    </div>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-highlight)', padding: '4px 10px', borderRadius: '12px' }}>
+                      {count}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Pinned artifacts ────────────────────────────────────────────────── */}
       {pinned.length > 0 && (

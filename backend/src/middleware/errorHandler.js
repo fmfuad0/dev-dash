@@ -41,7 +41,7 @@ function errorHandler(err, req, res, _next) {
   if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
     return res.status(401).json({ error: err.message });
   }
-
+ 
   // Default server error
   const status = err.status || err.statusCode || 500;
   const message = status < 500 ? err.message : 'Internal server error';

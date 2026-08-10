@@ -11,6 +11,14 @@ export function useArtifacts(params = {}) {
   });
 }
 
+export function useArtifactStats(params = {}) {
+  return useQuery({
+    queryKey: ['artifact-stats', params],
+    queryFn: () => artifactsApi.stats(params),
+    enabled: true,
+  });
+}
+
 /* ── Single ───────────────────────────────────────────────────────────────── */
 export function useArtifact(id) {
   return useQuery({

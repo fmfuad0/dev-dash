@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Lock, Plus, Eye, EyeOff, Trash2, Key, Globe, Shield, AlertTriangle } from 'lucide-react';
+import { Lock, Plus, Eye, EyeOff, Trash2, Key, Globe, Shield, AlertTriangle, FileText } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Editor } from '@monaco-editor/react';
 import { vaultApi } from '../api/index.js';
 import { useUIStore, toast } from '../store/uiStore.js';
 import Modal from '../components/UI/Modal.jsx';
@@ -19,6 +20,8 @@ export default function VaultPage() {
   const qc = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
   const [revealIds, setRevealIds] = useState(new Set());
+  const [revealedData, setRevealedData] = useState({});
+  const [loadingIds, setLoadingIds] = useState(new Set());
 
   const { data, isLoading } = useQuery({
     queryKey: ['vault', workspaceId],
@@ -34,12 +37,34 @@ export default function VaultPage() {
     },
   });
 
-  function toggleReveal(id) {
-    setRevealIds((s) => {
-      const n = new Set(s);
-      n.has(id) ? n.delete(id) : n.add(id);
-      return n;
-    });
+  async function toggleReveal(id) {
+    if (revealIds.has(id)) {
+      setRevealIds((s) => {
+        const n = new Set(s);
+        n.delete(id);
+        return n;
+      });
+    } else {
+      if (!revealedData[id]) {
+        setLoadingIds((s) => new Set(s).add(id));
+        try {
+          const res = await vaultApi.get(id);
+          const ciphertext = res.item?.secretEnvelope?.ciphertext;
+          const plaintext = ciphertext ? atob(ciphertext) : '';
+          setRevealedData((prev) => ({ ...prev, [id]: plaintext }));
+        } catch (err) {
+          toast.error('Failed to decrypt vault item');
+          setLoadingIds((s) => { const n = new Set(s); n.delete(id); return n; });
+          return;
+        }
+        setLoadingIds((s) => { const n = new Set(s); n.delete(id); return n; });
+      }
+      setRevealIds((s) => {
+        const n = new Set(s);
+        n.add(id);
+        return n;
+      });
+    }
   }
 
   async function handleDelete(id) {
@@ -102,15 +127,16 @@ export default function VaultPage() {
               <div
                 key={item._id}
                 className="card"
-                style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}
+                style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}
               >
-                <div style={{
-                  width: 36, height: 36, borderRadius: 'var(--radius-md)',
-                  background: `${meta.color}18`,
-                  border: `1px solid ${meta.color}30`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0,
-                }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 'var(--radius-md)',
+                    background: `${meta.color}18`,
+                    border: `1px solid ${meta.color}30`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0,
+                  }}>
                   <IconC size={16} style={{ color: meta.color }} />
                 </div>
 
@@ -118,6 +144,11 @@ export default function VaultPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
                     <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{item.title}</span>
                     <span className="badge badge-default" style={{ fontSize: '0.68rem' }}>{meta.label}</span>
+                    {item.publicMeta?.format === 'file' && (
+                      <span className="badge badge-default" style={{ fontSize: '0.68rem', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <FileText size={10} /> File
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
                     {item.publicMeta?.host && <span>Host: {item.publicMeta.host}</span>}
@@ -129,28 +160,31 @@ export default function VaultPage() {
                   </div>
                 </div>
 
-                {/* Encrypted value indicator */}
-                <div style={{
-                  fontFamily: 'var(--font-mono)', fontSize: '0.75rem',
-                  color: revealed ? 'var(--accent-warning)' : 'var(--text-muted)',
-                  background: 'var(--bg-elevated)',
-                  padding: '4px 10px',
-                  borderRadius: 'var(--radius-sm)',
-                  border: '1px solid var(--border-subtle)',
-                  cursor: 'pointer',
-                  userSelect: 'none',
-                }} onClick={() => toggleReveal(item._id)}>
-                  {revealed ? '🔓 [encrypted]' : '🔒 ••••••••'}
-                </div>
+                {/* Encrypted value indicator (hidden if revealed) */}
+                {!revealed && (
+                  <div style={{
+                    fontFamily: 'var(--font-mono)', fontSize: '0.75rem',
+                    color: 'var(--text-muted)',
+                    background: 'var(--bg-elevated)',
+                    padding: '4px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--border-subtle)',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                  }} onClick={() => toggleReveal(item._id)}>
+                    {loadingIds.has(item._id) ? 'Decrypting...' : '🔒 ••••••••'}
+                  </div>
+                )}
 
                 <div style={{ display: 'flex', gap: 4 }}>
                   <button
                     className="btn btn-ghost btn-icon"
                     onClick={() => toggleReveal(item._id)}
-                    title={revealed ? 'Hide' : 'Show metadata'}
+                    title={revealed ? 'Hide Secret' : 'Show Secret'}
                     style={{ padding: 6 }}
+                    disabled={loadingIds.has(item._id)}
                   >
-                    {revealed ? <EyeOff size={13} /> : <Eye size={13} />}
+                    {loadingIds.has(item._id) ? <span className="spinner" style={{ width: 13, height: 13 }} /> : (revealed ? <EyeOff size={13} /> : <Eye size={13} />)}
                   </button>
                   <button
                     className="btn btn-danger btn-icon"
@@ -161,6 +195,39 @@ export default function VaultPage() {
                     <Trash2 size={13} />
                   </button>
                 </div>
+                </div>
+
+                {/* Revealed Content Block */}
+                {revealed && (
+                  <div style={{ 
+                    border: '1px solid var(--accent-warning)', 
+                    borderRadius: 'var(--radius-sm)', 
+                    overflow: 'hidden',
+                    background: 'var(--bg-elevated)'
+                  }}>
+                    {item.publicMeta?.format === 'file' ? (
+                      <div style={{ height: 200 }}>
+                        <Editor
+                          height="100%"
+                          theme="vs-dark"
+                          language={item.vaultType === 'env' ? 'ini' : item.vaultType === 'api-token' || item.vaultType === 'generic' ? 'json' : 'shell'}
+                          value={revealedData[item._id] || ''}
+                          options={{ minimap: { enabled: false }, readOnly: true, lineNumbers: 'off', padding: { top: 8 } }}
+                        />
+                      </div>
+                    ) : (
+                      <div style={{ 
+                        padding: '12px 16px', 
+                        fontFamily: 'var(--font-mono)', 
+                        fontSize: '0.85rem',
+                        wordBreak: 'break-all',
+                        color: 'var(--text-primary)'
+                      }}>
+                        {revealedData[item._id] || ''}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -177,7 +244,7 @@ function AddVaultItemModal({ onClose, workspaceId }) {
   const [form, setForm] = useState({
     vaultType: 'env',
     title: '',
-    publicMeta: { host: '', usernameHint: '', keyName: '' },
+    publicMeta: { host: '', usernameHint: '', keyName: '', format: 'single' },
     // In a real E2E implementation the value would be encrypted client-side
     // before sending — this is a placeholder for Phase 2 crypto integration
     _plaintextValue: '',
@@ -210,6 +277,7 @@ function AddVaultItemModal({ onClose, workspaceId }) {
           host: form.publicMeta.host || undefined,
           usernameHint: form.publicMeta.usernameHint || undefined,
           keyName: form.publicMeta.keyName || undefined,
+          format: form.publicMeta.format || 'single',
         },
         secretEnvelope: stubEnvelope,
         tags: [],
@@ -243,6 +311,19 @@ function AddVaultItemModal({ onClose, workspaceId }) {
           <input className="input" placeholder="e.g. Stripe Secret Key" value={form.title}
             onChange={(e) => set('title', e.target.value)} required />
         </div>
+        <div className="input-group">
+          <label className="input-label">Format</label>
+          <div style={{ display: 'flex', gap: 16 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '0.85rem' }}>
+              <input type="radio" name="format" checked={form.publicMeta.format === 'single'} onChange={() => setMeta('format', 'single')} />
+              Single Secret
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '0.85rem' }}>
+              <input type="radio" name="format" checked={form.publicMeta.format === 'file'} onChange={() => setMeta('format', 'file')} />
+              Secret File
+            </label>
+          </div>
+        </div>
         {form.vaultType === 'ssh-key' || form.vaultType === 'ftp-password' ? (
           <div className="input-group">
             <label className="input-label">Host</label>
@@ -250,7 +331,7 @@ function AddVaultItemModal({ onClose, workspaceId }) {
               value={form.publicMeta.host} onChange={(e) => setMeta('host', e.target.value)} />
           </div>
         ) : null}
-        {form.vaultType === 'env' && (
+        {form.vaultType === 'env' && form.publicMeta.format === 'single' && (
           <div className="input-group">
             <label className="input-label">Key Name</label>
             <input className="input" placeholder="STRIPE_SECRET_KEY"
@@ -258,9 +339,22 @@ function AddVaultItemModal({ onClose, workspaceId }) {
           </div>
         )}
         <div className="input-group">
-          <label className="input-label">Secret Value</label>
-          <input type="password" className="input" placeholder="Will be encrypted before upload"
-            value={form._plaintextValue} onChange={(e) => set('_plaintextValue', e.target.value)} />
+          <label className="input-label">Secret Value {form.publicMeta.format === 'file' ? '(File Content)' : ''}</label>
+          {form.publicMeta.format === 'file' ? (
+            <div style={{ height: 200, border: '1px solid var(--border-subtle)', borderRadius: 4, overflow: 'hidden' }}>
+              <Editor
+                height="100%"
+                theme="vs-dark"
+                language={form.vaultType === 'env' ? 'ini' : form.vaultType === 'api-token' || form.vaultType === 'generic' ? 'json' : 'shell'}
+                value={form._plaintextValue}
+                onChange={(val) => set('_plaintextValue', val || '')}
+                options={{ minimap: { enabled: false }, lineNumbers: 'off', padding: { top: 8 } }}
+              />
+            </div>
+          ) : (
+            <input type="password" className="input" placeholder="Will be encrypted before upload"
+              value={form._plaintextValue} onChange={(e) => set('_plaintextValue', e.target.value)} />
+          )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
             <AlertTriangle size={11} style={{ color: 'var(--accent-warning)' }} />
             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>

@@ -64,7 +64,7 @@ export const useIdeStore = create(
       },
 
       // Layout & Settings
-      ideMode: 'vscode', // 'vscode' | 'dev-dash'
+      ideMode: 'dev-dash', // 'vscode' | 'dev-dash'  (default to Monaco, vscode mode needs daemon)
       setIdeMode: (mode) => set({ ideMode: mode }),
       showSidebar: true,
       showPanel: true,

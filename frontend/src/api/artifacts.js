@@ -6,6 +6,7 @@ export const artifactsApi = {
   get:     (id)     => api.get(`/artifacts/${id}`).then((r) => r.data),
   update:  (id, data) => api.patch(`/artifacts/${id}`, data).then((r) => r.data),
   remove:  (id)     => api.delete(`/artifacts/${id}`).then((r) => r.data),
+  stats:   (params) => api.get('/artifacts/stats', { params }).then((r) => r.data),
 
   // Versions
   versions:   (id, params) => api.get(`/artifacts/${id}/versions`, { params }).then((r) => r.data),

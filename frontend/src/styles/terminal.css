@@ -1,0 +1,331 @@
+/* ═══════════════════════════════════════════════════════════
+   Terminal Page Styles
+   Transparent background so the app theme gradient shows through
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Root ──────────────────────────────────────────────────── */
+.term-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: transparent; /* Shows app-shell gradient through */
+  color: var(--text-primary, #e2e8f0);
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  font-size: 13px;
+}
+
+/* ── Tab Bar ───────────────────────────────────────────────── */
+.term-tabbar {
+  display: flex;
+  align-items: center;
+  height: 38px;
+  flex-shrink: 0;
+  background: var(--glass-bg, rgba(18, 18, 20, 0.6));
+  backdrop-filter: var(--glass-blur, blur(16px));
+  -webkit-backdrop-filter: var(--glass-blur, blur(16px));
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+  gap: 4px;
+  padding: 0 8px 0 4px;
+  user-select: none;
+  overflow: visible; /* CRITICAL: allow dropdown to overflow below tabbar */
+  position: relative;
+  z-index: 10;
+}
+
+.term-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  flex: 1;
+  height: 100%;
+  overflow: hidden;
+}
+
+.term-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  cursor: pointer;
+  font-size: 12px;
+  border-radius: 6px 6px 0 0;
+  color: var(--text-muted, #71717a);
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.term-tab:hover {
+  color: var(--text-secondary, #a1a1aa);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.term-tab.active {
+  color: var(--text-primary, #e2e8f0);
+  background: rgba(255, 255, 255, 0.07);
+  border-color: var(--border-subtle, rgba(255,255,255,0.1));
+  border-bottom: 2px solid var(--accent-primary, #3b82f6);
+}
+
+.term-tab-badge {
+  font-family: monospace;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.term-tab-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.term-tab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted, #71717a);
+  border-radius: 3px;
+  padding: 0;
+  opacity: 0;
+  transition: opacity 0.1s, background 0.1s;
+}
+
+.term-tab:hover .term-tab-close,
+.term-tab.active .term-tab-close {
+  opacity: 1;
+}
+
+.term-tab-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-primary, #e2e8f0);
+}
+
+/* ── New Terminal Button ────────────────────────────────────── */
+.term-new-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.term-new-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.1));
+  color: var(--text-secondary, #a1a1aa);
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+.term-new-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-default, rgba(255,255,255,0.15));
+  color: var(--text-primary, #e2e8f0);
+}
+
+.term-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+}
+
+.term-picker {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: var(--bg-elevated, #121214);
+  border: 1px solid var(--border-default, rgba(255,255,255,0.15));
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg, 0 12px 32px rgba(0,0,0,0.5)), 0 0 0 1px rgba(255,255,255,0.04);
+  z-index: 9999;
+  min-width: 200px;
+  padding: 6px;
+  overflow: hidden;
+  animation: picker-in 0.12s ease;
+}
+
+@keyframes picker-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)  scale(1); }
+}
+
+.term-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary, #e2e8f0);
+  border-radius: 5px;
+  transition: background 0.1s;
+}
+
+.term-picker-item:hover {
+  background: var(--accent-primary, rgba(59,130,246,0.15));
+  background: rgba(59, 130, 246, 0.12);
+}
+
+/* ── Action Buttons ─────────────────────────────────────────── */
+.term-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+
+.term-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted, #71717a);
+  border-radius: 5px;
+  transition: all 0.15s;
+}
+
+.term-action-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary, #e2e8f0);
+}
+
+/* ── Terminal Body ──────────────────────────────────────────── */
+.term-body {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+  background: transparent; /* Let app gradient show */
+}
+
+/* ── xterm Instance Container ──────────────────────────────── */
+.term-instance {
+  position: absolute;
+  inset: 0;
+  padding: 6px 8px;
+}
+
+/* Make xterm fully transparent so the dashboard gradient shows through */
+.term-instance .xterm {
+  height: 100%;
+  background: transparent !important;
+}
+
+.term-instance .xterm-viewport {
+  background: transparent !important;
+}
+
+.term-instance .xterm-screen {
+  background: transparent !important;
+}
+
+/* The actual canvas element that renders the text */
+/* IMPORTANT: Do not set canvas background to transparent as it can break xterm's renderer */
+
+/* Scrollbar */
+.term-instance .xterm-viewport::-webkit-scrollbar {
+  width: 6px;
+}
+.term-instance .xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+.term-instance .xterm-viewport::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+.term-instance .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* ── Empty / Loading State ──────────────────────────────────── */
+.term-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  color: var(--text-muted, #71717a);
+  font-size: 13px;
+}
+
+.term-spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  border-top-color: var(--accent-primary, #3b82f6);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.term-open-btn {
+  background: var(--accent-primary, #3b82f6);
+  color: #fff;
+  border: none;
+  padding: 7px 18px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  transition: opacity 0.15s;
+}
+
+.term-open-btn:hover {
+  opacity: 0.85;
+}
+
+/* ── Status Bar ─────────────────────────────────────────────── */
+.term-statusbar {
+  display: flex;
+  align-items: center;
+  height: 22px;
+  flex-shrink: 0;
+  background: var(--accent-primary, #3b82f6);
+  color: #fff;
+  font-size: 11px;
+  user-select: none;
+}
+
+.term-status-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  height: 100%;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.term-status-item:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.term-status-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}

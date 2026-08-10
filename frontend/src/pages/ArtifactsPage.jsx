@@ -6,15 +6,7 @@ import { useUIStore } from '../store/uiStore.js';
 import ArtifactCard from '../components/Artifact/ArtifactCard.jsx';
 import CreateArtifactModal from '../components/Artifact/CreateArtifactModal.jsx';
 
-const KIND_FILTERS = [
-  { value: '', label: 'All' },
-  { value: 'snippet',          label: 'Snippets' },
-  { value: 'markdown',         label: 'Notes' },
-  { value: 'canvas',           label: 'Canvas' },
-  { value: 'credential',       label: 'Vault' },
-  { value: 'terminalEvent',    label: 'Terminal' },
-  { value: 'remoteConnection', label: 'Remote' },
-];
+import { CATEGORIES } from '../utils/artifactResources.js';
 
 export default function ArtifactsPage() {
   const navigate      = useNavigate();
@@ -25,11 +17,11 @@ export default function ArtifactsPage() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [q, setQ]       = useState(params.get('q') || '');
-  const [kind, setKind] = useState(params.get('kind') || '');
+  const [category, setCategory] = useState(params.get('category') || '');
   const [page, setPage] = useState(1);
 
   const queryParams = { workspaceId, page, limit: 24 };
-  if (kind) queryParams.kind = kind;
+  if (category) queryParams.category = category;
   if (q)    queryParams.q    = q;
 
   const { data, isLoading, isFetching } = useArtifacts(queryParams);
@@ -41,8 +33,8 @@ export default function ArtifactsPage() {
     setPage(1);
   }
 
-  function handleKind(k) {
-    setKind(k);
+  function handleCategory(e) {
+    setCategory(e.target.value);
     setPage(1);
   }
 
@@ -76,17 +68,19 @@ export default function ArtifactsPage() {
           </div>
         </form>
 
-        {/* Kind pills */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {KIND_FILTERS.map((f) => (
-            <button
-              key={f.value}
-              onClick={() => handleKind(f.value)}
-              className={`btn btn-sm ${kind === f.value ? 'btn-primary' : 'btn-secondary'}`}
-            >
-              {f.label}
-            </button>
-          ))}
+        {/* Category Filter */}
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <select
+            className="select"
+            style={{ minWidth: 160, height: 32, fontSize: '0.85rem' }}
+            value={category}
+            onChange={handleCategory}
+          >
+            <option value="">All Categories</option>
+            {CATEGORIES.map(c => (
+              <option key={c.id} value={c.name}>{c.name}</option>
+            ))}
+          </select>
         </div>
 
         {/* View toggle */}

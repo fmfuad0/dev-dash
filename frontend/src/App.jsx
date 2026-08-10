@@ -5,6 +5,7 @@ import { useSocket } from './hooks/useSocket.js';
 
 import AppLayout from './components/Layout/AppLayout.jsx';
 import ToastContainer from './components/UI/ToastContainer.jsx';
+import { useUIStore } from './store/uiStore.js';
 
 import LoginPage           from './pages/LoginPage.jsx';
 import RegisterPage        from './pages/RegisterPage.jsx';
@@ -14,13 +15,15 @@ import ArtifactDetail      from './pages/ArtifactDetailPage.jsx';
 import WorkspacesPage      from './pages/WorkspacesPage.jsx';
 import SearchPage          from './pages/SearchPage.jsx';
 import VaultPage           from './pages/VaultPage.jsx';
+import ExplorerPage        from './pages/ExplorerPage.jsx';
 import TerminalHistoryPage from './pages/TerminalPage.jsx';
 import DevicesPage         from './pages/DevicesPage.jsx';
 import SettingsPage        from './pages/SettingsPage.jsx';
 import EditorPage          from './pages/EditorPage.jsx';
 import GitPage             from './pages/GitPage.jsx';
-import TerminalStandalonePage from './pages/TerminalStandalonePage.jsx';
 import NotificationsPage   from './pages/NotificationsPage.jsx';
+import CanvasPage          from './pages/CanvasPage.jsx';
+
 
 function PrivateRoute({ children }) {
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -46,13 +49,14 @@ function AppRoutes() {
         <Route path="artifacts"        element={<ArtifactsPage />} />
         <Route path="artifacts/:id"    element={<ArtifactDetail />} />
         <Route path="search"           element={<SearchPage />} />
+        <Route path="explorer"         element={<ExplorerPage />} />
         <Route path="vault"            element={<VaultPage />} />
-        <Route path="terminal"         element={<></>} />
         <Route path="terminal-history" element={<TerminalHistoryPage />} />
         <Route path="editor"           element={<></>} />
         <Route path="git"              element={<GitPage />} />
         <Route path="devices"          element={<DevicesPage />} />
         <Route path="notifications"    element={<NotificationsPage />} />
+        <Route path="canvas"           element={<CanvasPage />} />
         <Route path="settings"         element={<SettingsPage />} />
       </Route>
 
@@ -63,6 +67,12 @@ function AppRoutes() {
 
 // Trigger Vite reload
 export default function App() {
+  const theme = useUIStore((s) => s.theme);
+
+  React.useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
   return (
     <BrowserRouter>
       <AppRoutes />

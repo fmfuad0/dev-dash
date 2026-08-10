@@ -9,9 +9,9 @@ import 'xterm/css/xterm.css';
 
 const SHELLS = [
   { id: 'powershell', label: 'PowerShell', icon: '⚡', cmd: 'powershell.exe',    color: '#2671be', badge: 'PS' },
-  { id: 'cmd',        label: 'Command Prompt', icon: '⬛', cmd: 'cmd.exe',        color: '#cccccc', badge: 'CMD' },
-  { id: 'gitbash',   label: 'Git Bash',     icon: '🟠', cmd: 'bash.exe',          color: '#89e051', badge: '$' },
-  { id: 'wsl',       label: 'WSL',          icon: '🐧', cmd: 'wsl.exe',           color: '#ff6600', badge: 'λ' },
+  { id: 'cmd',       label: 'Command Prompt', icon: '>', cmd: 'cmd.exe',           color: '#4af626', badge: 'C:\\' },
+  { id: 'gitbash',   label: 'Git Bash',     icon: 'B', cmd: 'C:\\Program Files\\Git\\bin\\bash.exe', color: '#f34f29', badge: '~' },
+  { id: 'docker',    label: 'Docker Engine',icon: '🐳',cmd: 'docker',            color: '#0db7ed', badge: '🐳' },
 ];
 
 const VSC_THEME = {
